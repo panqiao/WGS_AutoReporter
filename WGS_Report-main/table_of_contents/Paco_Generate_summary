@@ -1,0 +1,258 @@
+import pandas as pd
+from docxtpl import DocxTemplate
+from collections import defaultdict
+from docx import Document
+from docx.shared import Inches
+from docx.enum.text import WD_ALIGN_PARAGRAPH
+import os
+
+# File paths
+excel_path = "preprocessed_data_v1.xlsx"
+template_path = "example_template_with_placeholders.docx"  # Use template with placeholders
+output_path = "output.docx"
+
+# Assuming your Excel file is named 'preprocessed_data_v1.xlsx', using the second column 'Phenotype(s)' and third column 'Drug(s)'
+df = pd.read_excel(excel_path)
+
+# Process data: group phenotypes and collect unique drugs (handle semicolon-separated multiple drugs)
+grouped_drugs = defaultdict(set)
+
+for _, row in df.iterrows():
+    # Access data using column names and handle NaN values
+    phenotype = str(row['Phenotype(s)']).strip() if pd.notna(row['Phenotype(s)']) else ''
+    drugs_str = str(row['Drug(s)']) if pd.notna(row['Drug(s)']) else ''
+    
+    # Skip empty values
+    if phenotype and phenotype != 'nan':
+        drugs = [d.strip() for d in drugs_str.split(';') if d.strip() and d.strip() != 'nan']
+        grouped_drugs[phenotype].update(drugs)
+
+# Convert to list and sort by phenotype
+phenotypes = sorted(grouped_drugs.keys())
+for p in phenotypes:
+    grouped_drugs[p] = sorted(list(grouped_drugs[p]))
+
+# Check placeholders in template and automatically detect table row count
+try:
+    doc = DocxTemplate(template_path)
+    template_vars = list(doc.get_undeclared_template_variables())
+    print(f"📋 Placeholders in template: {template_vars}")
+    
+    if not template_vars:
+        print("⚠️ Warning: No placeholders found in template!")
+        print("Please ensure the template file contains one of the following placeholders:")
+        print("- {{ left_content }}, {{ left_page }}, {{ right_content }}, {{ right_page }}")
+        print("- {{ content }}, {{ page }}")
+        print("- Or other custom placeholders you defined")
+    
+    # Automatically detect table row count in template
+    template_doc = Document(template_path)
+    if template_doc.tables:
+        # Get row count of first table (minus header)
+        template_rows = len(template_doc.tables[0].rows) - 1  # Subtract header row
+        entries_per_page = template_rows
+        print(f"📏 Automatically detected template table row count: {template_rows} rows (excluding header)")
+    else:
+        print("⚠️ Warning: No table found in template, using default value 15")
+        entries_per_page = 15
+    
+except Exception as e:
+    print(f"❌ Template reading failed: {str(e)}")
+    print("Using default value 15")
+    entries_per_page = 15
+
+# Check if template exists
+if not os.path.exists(template_path):
+    print(f"❌ Template does not exist: {template_path}")
+    print("Please ensure the template file exists, or modify the template_path variable to point to the correct template file")
+    exit(1)
+
+# Collect all entries
+all_entries = []
+
+# Initialize page number and item number
+page_num = 1
+item_num = 1  # Phenotype numbering starts from 1
+
+# Iterate through each phenotype, collect all entries
+for phenotype in phenotypes:
+    # Add phenotype entry (marked for bold formatting)
+    all_entries.append({
+        'content': f'{item_num}. {phenotype}',
+        'page': f'{page_num:03d}',
+        'type': 'phenotype',
+        'is_bold': True  # Mark for bold formatting
+    })
+    page_num += 1
+
+    # Add drugs under this phenotype (marked for normal font)
+    sub_num = 1
+    for drug in grouped_drugs[phenotype]:
+        all_entries.append({
+            'content': f'{item_num}.{sub_num} {drug}',
+            'page': f'{page_num:03d}',
+            'type': 'drug',
+            'is_bold': False  # Mark for normal font
+        })
+        sub_num += 1
+        page_num += 1
+    
+    item_num += 1
+
+# Set number of entries displayed per page
+# This number comes from the format of example.docx: each table has 16 rows (1 header row + 15 data rows)
+# If you use a different template, please adjust this value according to the table row count in your template
+# entries_per_page = 15  # Can be modified to other values, such as 10, 20, etc.
+
+# Pagination processing - generate universal data structure
+pages_data = []
+current_entry_index = 0
+
+while current_entry_index < len(all_entries):
+    # Calculate entry range for current page
+    # Each page needs entries_per_page * 2 entries to fill the table (left and right columns)
+    page_start = current_entry_index
+    page_end = min(current_entry_index + entries_per_page * 2, len(all_entries))
+    page_entries = all_entries[page_start:page_end]
+    
+    # Create table row data for current page
+    page_rows = []
+    
+    # Calculate data for left and right columns
+    left_entries = page_entries[:len(page_entries)//2]
+    right_entries = page_entries[len(page_entries)//2:]
+    
+    # Ensure each page has entries_per_page rows of data
+    for i in range(entries_per_page):
+        row = {
+            'left_content': '',
+            'left_page': '',
+            'right_content': '',
+            'right_page': '',
+            'left_is_bold': False,
+            'right_is_bold': False
+        }
+        
+        # Fill left column data
+        if i < len(left_entries):
+            row['left_content'] = left_entries[i]['content']
+            row['left_page'] = left_entries[i]['page']
+            row['left_is_bold'] = left_entries[i]['is_bold']
+        
+        # Fill right column data
+        if i < len(right_entries):
+            row['right_content'] = right_entries[i]['content']
+            row['right_page'] = right_entries[i]['page']
+            row['right_is_bold'] = right_entries[i]['is_bold']
+        
+        page_rows.append(row)
+    
+    # Add page data
+    pages_data.append({
+        'rows': page_rows,
+        'is_not_last_page': current_entry_index + entries_per_page * 2 < len(all_entries)
+    })
+    
+    # Update index to next page
+    current_entry_index = page_end
+
+# Render template - provide universal data structure
+try:
+    # Create final Word document
+    final_doc = Document()
+    
+    # Render template for each page
+    for page_idx, page_data in enumerate(pages_data):
+        # Create new page (copy template structure)
+        template_doc = Document(template_path)
+        
+        # Get table in template
+        if template_doc.tables:
+            table = template_doc.tables[0]
+            
+            # Ensure table has enough rows to fill data
+            template_rows = len(table.rows) - 1  # Subtract header
+            
+            # If template doesn't have enough rows, add more rows
+            while len(table.rows) - 1 < entries_per_page:
+                table.add_row()
+                # Add cells for new row
+                new_row = table.rows[-1]
+                for _ in range(4):  # 4 columns
+                    new_row.add_cell()
+            
+            # Clear table content (keep header)
+            for i in range(1, len(table.rows)):  # Start from row 2 (skip header)
+                row = table.rows[i]
+                row.cells[0].text = ''
+                row.cells[1].text = ''
+                row.cells[2].text = ''
+                row.cells[3].text = ''
+            
+            # Fill data - ensure all rows are filled and set font formatting
+            for i in range(entries_per_page):
+                if i + 1 < len(table.rows):  # +1 because we need to skip header
+                    row = table.rows[i + 1]
+                    
+                    # Get corresponding data
+                    if i < len(page_data['rows']):
+                        row_data = page_data['rows'][i]
+                        
+                        # Set left content (support bold formatting)
+                        if row_data['left_content']:
+                            cell = row.cells[0]
+                            cell.text = row_data['left_content']
+                            # Set font formatting
+                            for paragraph in cell.paragraphs:
+                                for run in paragraph.runs:
+                                    run.bold = row_data['left_is_bold']
+                        
+                        # Set left page number
+                        row.cells[1].text = row_data['left_page']
+                        
+                        # Set right content (support bold formatting)
+                        if row_data['right_content']:
+                            cell = row.cells[2]
+                            cell.text = row_data['right_content']
+                            # Set font formatting
+                            for paragraph in cell.paragraphs:
+                                for run in paragraph.runs:
+                                    run.bold = row_data['right_is_bold']
+                        
+                        # Set right page number
+                        row.cells[3].text = row_data['right_page']
+                    else:
+                        # If not enough data, fill with empty strings
+                        row.cells[0].text = ''
+                        row.cells[1].text = ''
+                        row.cells[2].text = ''
+                        row.cells[3].text = ''
+        
+        # Add page to final document
+        if page_idx == 0:
+            # First page: directly add entire template content
+            for element in template_doc.element.body:
+                final_doc.element.body.append(element)
+        else:
+            # Subsequent pages: add page break, then add template content
+            # Add page break
+            final_doc.add_page_break()
+            
+            # Add template content (including title and table)
+            for element in template_doc.element.body:
+                final_doc.element.body.append(element)
+    
+    # Save final document
+    final_doc.save(output_path)
+    
+    print("✅ Word document generated: output.docx")
+    print(f"📊 Total phenotypes processed: {len(phenotypes)}")
+    print(f"📄 Total pages generated: {len(pages_data)}")
+    print(f"📝 Total entries processed: {len(all_entries)}")
+    print("🎯 Phenotype entries set to bold, Drug entries remain normal font")
+    
+except Exception as e:
+    print(f"❌ Template rendering failed: {str(e)}")
+    print("Please check if the placeholder format in the template file is correct")
+    print("Suggested placeholder format:")
+    print("- {{ left_content }}, {{ left_page }}, {{ right_content }}, {{ right_page }}")
