@@ -1,197 +1,145 @@
 # WGS_AutoReporter
-WGS_AutoReporter
 
+**Automated whole-genome sequencing analysis and structured reporting.**
 
+WGS_AutoReporter is a Python-based project designed to connect whole-genome sequencing (WGS) data processing with automated report generation. Its goal is to bring analysis results, quality-control metrics, variant annotations, and visualizations into a consistent reporting workflow, reducing repetitive manual work and making results easier to review and share.
 
-WGS_AutoReporter is an automated report generation tool designed for Whole Genome Sequencing (WGS) data analysis. It streamlines the process from raw sequencing data to professional reports, enabling researchers, clinicians, and bioinformaticians to generate high-quality analysis reports quickly without manual scripting or tedious pipeline configuration.
+The project is aimed at researchers and bioinformaticians who want to turn complex sequencing outputs into clear, organized research reports.
 
-🚀 Quick Start
+> **Research use only.** Reports require scientific review and should not be used as a substitute for validated clinical interpretation.
 
-Prerequisites
+## Overview
 
+WGS analysis often produces results across multiple tools, file formats, and processing stages. WGS_AutoReporter is designed to connect these outputs through a modular workflow that separates data processing, result summarization, visualization, and report rendering.
 
+The emphasis is on three goals:
 
+- **Automation:** reduce repetitive processing and manual report assembly.
+- **Consistency:** organize results using a common reporting structure.
+- **Extensibility:** allow analysis and reporting components to evolve independently.
 
+## Workflow
 
-Python 3.8 or higher
+```text
+Sequencing reads (FASTQ)
+          |
+          v
+Read quality assessment
+          |
+          v
+Reference-based alignment ---- Existing aligned reads (BAM)
+          |                                  |
+          +----------------+-----------------+
+                           |
+                           v
+              Coverage and alignment QC
+                           |
+                           v
+                    Variant analysis
+                           |
+                           v
+               Filtering and annotation
+                           |
+                           v
+          Result summaries and visualizations
+                           |
+                           v
+                 Structured research report
+```
 
+The starting point and processing stages depend on the input data and selected analysis workflow. Structural-variant analysis requires a dedicated workflow rather than being interchangeable with small-variant calling.
 
+## Analysis Scope
 
-Install dependencies: pip install -r requirements.txt
+The following table describes the intended analysis scope and representative integration tools. It is not a verified inventory of implemented integrations or bundled dependencies.
 
+| Component | Purpose | Representative tools |
+| --- | --- | --- |
+| Read alignment | Map sequencing reads to a reference genome | BWA, SAMtools |
+| SNP and indel analysis | Identify and summarize small sequence variants | GATK HaplotypeCaller |
+| Structural-variant analysis | Analyze larger genomic alterations | Manta, DELLY |
+| Coverage and quality control | Summarize sequencing depth, coverage, and alignment metrics | mosdepth, SAMtools |
+| Variant annotation | Add functional and database-derived context to variants | VEP, ANNOVAR |
+| Visualization and reporting | Assemble tables, figures, and analytical summaries | Matplotlib, Plotly, Jinja2, ReportLab |
 
+Check the implementation in `WGS_Report-main/` before relying on a particular analysis module, tool integration, or export format.
 
-Access to WGS data files (FASTQ, BAM, etc.)
+## Report Design
 
-Installation
+Reports are intended to bring the main analytical outputs together in one place:
 
-git clone https://github.com/yourusername/WGS_AutoReporter.git
+| Section | Intended content |
+| --- | --- |
+| Analysis overview | Sample identifiers, input data, reference genome, and analysis scope |
+| Quality control | Available sequencing, alignment, and coverage metrics |
+| Variant summary | Summary statistics for the variant classes analyzed |
+| Annotated results | Variant tables with available functional annotations |
+| Visualizations | Figures appropriate to the selected analysis and available results |
+| Interpretation notes | Relevant filtering criteria, limitations, and items requiring review |
+
+PDF, HTML, and JSON are target output formats for human-readable reports, browser-based review, and downstream processing, respectively. Availability must be confirmed against the implemented exporters.
+
+## Repository Layout
+
+```text
+WGS_AutoReporter/
+|-- README.md
+`-- WGS_Report-main/
+```
+
+`WGS_Report-main/` is the project subdirectory. Inspect its scripts and configuration files for implementation-specific requirements and execution details.
+
+## Getting Started
+
+### 1. Clone the repository
+
+```bash
+git clone https://github.com/panqiao/WGS_AutoReporter.git
 cd WGS_AutoReporter
-pip install -r requirements.txt
+```
 
-Usage Example
+### 2. Inspect the implementation
 
-# Basic run: Input FASTQ file path, generate report
-python autoreporter.py --input sample.fastq --output report.pdf --mode variant_calling
+```bash
+cd WGS_Report-main
+ls
+```
 
-# Advanced options: Specify reference genome and analysis type
-python autoreporter.py --input /path/to/data/ --ref hg38.fa --type structural_variants --email notifications@example.com
+Identify the entry script, configuration files, and dependency specifications for the workflow you intend to run. Install the required Python packages and external analysis tools using the environment definitions supplied with that implementation.
 
-The generated report includes variant annotations, coverage statistics, visualizations (e.g., Manhattan Plot), and quality control metrics, with support for PDF, HTML, and JSON export formats.
+### 3. Prepare the analysis inputs
 
-✨ Features
+Depending on the workflow, inputs may include sequencing reads or aligned-read files, a reference genome with the required indexes, sample metadata, and annotation resources.
 
+Before running an analysis, confirm that the input format, reference assembly, chromosome naming, and annotation resources are compatible with the selected workflow.
 
+### 4. Run and review
 
+Use the entry point and arguments defined by the implementation. Review the logs, quality-control results, filtering criteria, and generated report before drawing biological conclusions.
 
+**Execution note:** This overview does not specify a validated command-line interface. Do not assume that an `autoreporter.py` entry point or command-line options are available without checking the source code.
 
-Automated Pipeline: Integrates mainstream tools like BWA, GATK, and Samtools for one-click alignment, variant calling, and filtering.
+## Technology and Architecture
 
+The project design uses Python to connect analysis outputs with tabular processing, visualization, and report generation.
 
+| Layer | Technologies described in the project design |
+| --- | --- |
+| Data processing | Python, Pandas, NumPy, Biopython |
+| Visualization | Matplotlib, Plotly |
+| Templating and rendering | Jinja2, ReportLab |
+| Optional workflow orchestration | Snakemake or Nextflow |
 
-Customizable Templates: Uses Jinja2 for configurable report templates to meet diverse lab or clinical needs.
+External bioinformatics tools, reference datasets, and annotation databases require their own installation and configuration. Listing a tool here does not imply that it is distributed with this repository.
 
+## Reproducibility and Limitations
 
+For each analysis, retain the input identifiers, reference assembly, software versions, annotation database versions, parameters, and logs. Review missing metrics and failed processing stages rather than treating a successfully rendered report as proof that the underlying analysis completed correctly.
 
-Visualization Integration: Built-in Matplotlib and Plotly for generating interactive charts, easy to share and review.
+Results depend on the input data, reference resources, analysis tools, and filtering choices. Automated reporting supports review; it does not replace method validation or biological interpretation.
 
+## Contributing
 
+Issues and pull requests are welcome. Useful contributions include reproducible installation instructions, tested command-line examples, analysis integrations, reporting templates, and automated tests.
 
-Cloud Support: Compatible with AWS S3 and Google Cloud Storage for large-scale dataset processing.
-
-
-
-Error Handling & Logging: Real-time pipeline monitoring with detailed logs and failure recovery mechanisms.
-
-
-
-Open Source & Extensible: Modular design for easy plugin development and third-party tool integration.
-
-📊 Supported Analysis Types
-
-
-
-
-
-
-
-Type
-
-
-
-Description
-
-
-
-Example Tools
-
-
-
-
-
-SNP/Indel Calling
-
-
-
-Single nucleotide and insertion/deletion variant detection
-
-
-
-GATK HaplotypeCaller
-
-
-
-
-
-Structural Variants
-
-
-
-Large-scale variant analysis
-
-
-
-Manta, DELLY
-
-
-
-
-
-Coverage Analysis
-
-
-
-Coverage assessment and QC
-
-
-
-Mosdepth
-
-
-
-
-
-Annotation
-
-
-
-Functional annotation and database integration
-
-
-
-ANNOVAR, VEP
-
-🛠️ Tech Stack
-
-
-
-
-
-Core Language: Python 3.x
-
-
-
-Data Processing: Pandas, NumPy, BioPython
-
-
-
-Workflow Management: Snakemake or Nextflow (optional)
-
-
-
-Report Generation: ReportLab, Jupyter Notebooks
-
-
-
-Testing: Pytest, Coverage.py
-
-🤝 Contributing
-
-Contributions are welcome! Please fork the repository, create a feature branch, and submit a Pull Request. See CONTRIBUTING.md for more details.
-
-
-
-
-
-Fork the project
-
-
-
-Create a feature branch: git checkout -b feature/amazing-feature
-
-
-
-Commit changes: git commit -m 'Add amazing feature'
-
-
-
-Push to the branch: git push origin feature/amazing-feature
-
-
-
-Open a Pull Request
-
-📄 License
-
-This project is licensed under the MIT License. See the LICENSE file for details.
-
+When reporting a problem, include the command used, environment details, relevant logs, and a minimal non-sensitive example. Do not upload identifiable human genomic data, credentials, or private sample metadata.
